@@ -15,7 +15,10 @@ while true; do
   SLEEP_SECONDS=$((TARGET_EPOCH - NOW_EPOCH))
   sleep "$SLEEP_SECONDS"
 
-  python manage.py backup_db || true
+  if ! python manage.py backup_db; then
+    echo "Nightly backup failed; exiting backup scheduler for visibility" >&2
+    exit 1
+  fi
 
   sleep 60
 done

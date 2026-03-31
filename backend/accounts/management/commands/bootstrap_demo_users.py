@@ -27,6 +27,30 @@ class Command(BaseCommand):
             role_code=BaseRole.SENIOR,
             is_staff=False,
         )
+        self._upsert_user(
+            organization=org,
+            username="family1",
+            real_name="Family Member One",
+            password="SecurePass1234",
+            role_code=BaseRole.FAMILY_MEMBER,
+            is_staff=False,
+        )
+        self._upsert_user(
+            organization=org,
+            username="caregiver1",
+            real_name="Caregiver One",
+            password="SecurePass1234",
+            role_code=BaseRole.CAREGIVER,
+            is_staff=False,
+        )
+        self._upsert_user(
+            organization=org,
+            username="platform1",
+            real_name="Platform Admin One",
+            password="SecurePass1234",
+            role_code=BaseRole.PLATFORM_ADMIN,
+            is_staff=True,
+        )
 
         self.stdout.write(self.style.SUCCESS("Demo users bootstrapped."))
 

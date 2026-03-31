@@ -1,4 +1,11 @@
 export function createApiClient(baseUrl) {
+  function createReplayNonce() {
+    if (globalThis.crypto?.randomUUID) {
+      return globalThis.crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  }
+
   function buildApiError(response, payload) {
     const message = payload?.detail || `Request failed (${response.status})`;
     const error = new Error(message);
@@ -15,8 +22,14 @@ export function createApiClient(baseUrl) {
 
   async function request(path, options = {}, includeCsrf = false) {
     const headers = { ...(options.headers || {}) };
+    const method = (options.method || "GET").toUpperCase();
+    const isMutating = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
     if (includeCsrf) {
       headers["X-CSRFToken"] = await fetchCsrfToken();
+    }
+    if (isMutating) {
+      headers["X-Request-Timestamp"] = new Date().toISOString();
+      headers["X-Request-Nonce"] = createReplayNonce();
     }
 
     const response = await fetch(`${baseUrl}${path}`, {

@@ -39,6 +39,8 @@ const screenIcons = {
   Inventory: ClipboardCheck,
   Jobs: Database,
   Verification: Shield,
+  Audit: ClipboardCheck,
+  "Cross-Org Oversight": RefreshCw,
   Anomalies: AlertTriangle,
   Security: Shield,
   Profile: UserRound,
@@ -50,7 +52,10 @@ const screenDescriptions = {
   Inventory: "Track count plans and variance closure status by location and asset type.",
   Jobs: "Create and retry ingestion jobs, resolve row errors, and run dedupe checks.",
   Verification: "Review identity verification requests and submit approval decisions.",
+  Audit: "Review operational change signals, mutation footprints, and unresolved ingest exceptions.",
+  "Cross-Org Oversight": "Track high-level organization posture and cross-domain operational readiness.",
   Anomalies: "Review security and operations alerts that require administrative attention.",
+  Security: "Monitor replay protection posture, signed mutation controls, and sensitive data access state.",
   Profile: "Manage preferences, traveler privacy data, exports, deletion requests, favorites, and reminders.",
 };
 
@@ -188,16 +193,19 @@ function App() {
   const { allScreens, roleLabel, quickStats } = useWorkspaceScreens({
     sessionRoles: session.roles,
     roleScreens,
-    statsByScreen: {
-      Trips: trips.length,
-      Warehouse: warehouses.length,
-      Inventory: plans.length,
-      Jobs: jobs.length,
-      Verification: verificationRequests.length,
-      Anomalies: alerts.length,
-      Profile: favorites.length + travelerProfiles.length,
-    },
-  });
+      statsByScreen: {
+        Trips: trips.length,
+        Warehouse: warehouses.length,
+        Inventory: plans.length,
+        Jobs: jobs.length,
+        Verification: verificationRequests.length,
+        Audit: rowErrors.length,
+        "Cross-Org Oversight": session.roles.length,
+        Anomalies: alerts.length,
+        Security: travelerProfiles.length,
+        Profile: favorites.length + travelerProfiles.length,
+      },
+    });
   const activeStat = quickStats.find((item) => item.screen === activeScreen);
 
   const canSeeActiveScreen = canAccessScreen(capabilities, activeScreen);
@@ -613,6 +621,93 @@ function App() {
                       "No anomaly alerts at this time."
                     )}
 
+                  {canSeeActiveScreen && activeScreen === "Audit" && (
+                    <div className="grid gap-3 lg:grid-cols-3">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Job Throughput</CardTitle>
+                          <CardDescription>Total tracked jobs in current scope</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-2xl font-semibold">{jobs.length}</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Failed Jobs</CardTitle>
+                          <CardDescription>Jobs currently in failed status</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-2xl font-semibold">{jobs.filter((job) => job.status === "failed").length}</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Open Row Errors</CardTitle>
+                          <CardDescription>Unresolved ingest row exceptions</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-2xl font-semibold">{rowErrors.filter((error) => !error.resolved).length}</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  {canSeeActiveScreen && activeScreen === "Cross-Org Oversight" && (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Organization Context</CardTitle>
+                          <CardDescription>Active runtime organization context</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm text-muted-foreground">
+                          <p>Organization code: <span className="font-medium text-foreground">{session.user?.organization_code || "Unknown"}</span></p>
+                          <p>Roles in session: <span className="font-medium text-foreground">{session.roles.join(", ") || "None"}</span></p>
+                          <p>Signed mutation scope: <span className="font-medium text-foreground">/api/</span></p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Operational Signals</CardTitle>
+                          <CardDescription>Cross-domain counts in current scope</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm text-muted-foreground">
+                          <p>Trips: <span className="font-medium text-foreground">{trips.length}</span></p>
+                          <p>Warehouses: <span className="font-medium text-foreground">{warehouses.length}</span></p>
+                          <p>Pending alerts: <span className="font-medium text-foreground">{alerts.filter((alert) => !alert.acknowledged).length}</span></p>
+                          <p>Verification requests: <span className="font-medium text-foreground">{verificationRequests.length}</span></p>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  {canSeeActiveScreen && activeScreen === "Security" && (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Replay Protection</CardTitle>
+                          <CardDescription>Mutation replay controls currently enforced</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm text-muted-foreground">
+                          <p>Session mutations: nonce + timestamp replay checks</p>
+                          <p>Machine mutations: HMAC signature + nonce + timestamp</p>
+                          <p>Protected mutation prefix: <span className="font-medium text-foreground">/api/</span></p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Sensitive Access Signals</CardTitle>
+                          <CardDescription>High-sensitivity operations in session scope</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm text-muted-foreground">
+                          <p>Traveler profiles: <span className="font-medium text-foreground">{travelerProfiles.length}</span></p>
+                          <p>Export requests: <span className="font-medium text-foreground">{exportRequests.length}</span></p>
+                          <p>Recent reveal fields: <span className="font-medium text-foreground">{Object.keys(travelerReveal || {}).length}</span></p>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
                   {canSeeActiveScreen && activeScreen === "Profile" && (
                     <ProfileScreen
                       profileForms={profileForms}
@@ -640,7 +735,7 @@ function App() {
                     />
                   )}
 
-                  {canSeeActiveScreen && !Object.keys(screenDescriptions).includes(activeScreen) && (
+                  {canSeeActiveScreen && !session.roles.includes("platform_admin") && !Object.keys(screenDescriptions).includes(activeScreen) && (
                     <Card>
                       <CardContent className="p-6 text-sm text-muted-foreground">
                         This section is available in navigation and is ready for its next UI pass.

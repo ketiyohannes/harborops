@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -17,6 +18,30 @@ from jobs.models import (
     JobLease,
     JobStatus,
 )
+
+
+DEFAULT_ORG_CONCURRENCY_LIMIT = 3
+MAX_ORG_CONCURRENCY_LIMIT = 20
+
+
+def resolve_concurrency_limit(raw_value=None):
+    candidate = (
+        raw_value
+        if raw_value is not None
+        else os.getenv(
+            "OFFLINE_INGEST_CONCURRENCY_LIMIT", str(DEFAULT_ORG_CONCURRENCY_LIMIT)
+        )
+    )
+    try:
+        parsed = int(str(candidate).strip())
+    except (TypeError, ValueError):
+        parsed = DEFAULT_ORG_CONCURRENCY_LIMIT
+
+    if parsed < 1:
+        return 1
+    if parsed > MAX_ORG_CONCURRENCY_LIMIT:
+        return MAX_ORG_CONCURRENCY_LIMIT
+    return parsed
 
 
 def validate_dependency_graph(job, dependency_ids):
@@ -56,6 +81,7 @@ def has_unfinished_dependencies(job):
 
 @transaction.atomic
 def claim_next_job(worker_id, organization_id, concurrency_limit=3):
+    concurrency_limit = resolve_concurrency_limit(concurrency_limit)
     active_count = JobLease.objects.filter(
         job__organization_id=organization_id,
         job__status=JobStatus.RUNNING,

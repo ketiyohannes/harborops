@@ -24,8 +24,8 @@ Equivalent helper script:
 bash setup.sh
 ```
 
-`docker-compose.yml` includes local-dev defaults for required secrets and DB config, so `.env` is optional.
-If you provide `.env`, its values override those defaults.
+`docker-compose.yml` includes local-dev fallback secrets so `docker compose up` works without extra setup.
+For stronger local security, generate and use a custom `.env` with `bash deploy/bootstrap_env.sh`.
 
 ## Encryption Key Setup and Rotation
 
@@ -94,7 +94,13 @@ git rm -r --cached deploy/certs backend/media backend/backups
 Recommended pre-commit/CI guardrail:
 
 ```bash
-gitleaks detect --source . --no-git --redact
+bash deploy/check_no_sensitive_runtime_artifacts.sh
+```
+
+Cleanup helper before packaging/release:
+
+```bash
+bash deploy/scrub_sensitive_runtime.sh
 ```
 
 ## Seeded Demo Users
@@ -104,6 +110,15 @@ Startup bootstraps a demo organization and users:
 - Organization code: `HARBOR_DEMO`
 - Org Admin: `orgadmin` / `SecurePass1234`
 - Senior: `senior1` / `SecurePass1234`
+- Family Member: `family1` / `SecurePass1234`
+- Caregiver: `caregiver1` / `SecurePass1234`
+- Platform Admin: `platform1` / `SecurePass1234`
+
+Persona verification quick steps:
+
+1. Run `docker compose up --build`.
+2. Open `https://localhost:8443` and log in with each seeded user.
+3. Confirm role entry points via `GET /api/access/me/roles/` and sidebar screens.
 
 Auth and role APIs:
 
@@ -129,9 +144,10 @@ Self-service export APIs:
 
 Request-signing scope:
 
-- HMAC signing with timestamp/nonce replay prevention applies to mutating endpoints matching `REQUEST_SIGNING_PREFIXES` (default: `/api/jobs/`).
+- HMAC signing with timestamp/nonce replay prevention applies to mutating endpoints matching `REQUEST_SIGNING_PREFIXES` (default: `/api/`).
 - Signed API-key requests are enforced for those prefixes when session authentication is not present.
-- Interactive user/browser APIs continue to rely on session authentication, CSRF protection, and role/object authorization controls.
+- Interactive user/browser APIs continue to rely on session authentication, CSRF protection, role/object authorization controls, and replay headers on mutating calls (`X-Request-Timestamp`, `X-Request-Nonce`).
+- Allowlisted unauthenticated auth routes bypass signing via `REQUEST_SIGNING_ALLOWLIST_PATHS` (default: `/api/auth/login/`, `/api/auth/register/`, `/api/auth/captcha/challenge/`).
 
 Signing header contract:
 
@@ -142,13 +158,15 @@ Signing header contract:
 
 Protected prefix defaults (`REQUEST_SIGNING_PREFIXES`):
 
-- `/api/jobs/` (includes `/api/jobs/worker/*` and non-worker job mutation endpoints)
+- `/api/` (all mutating API routes except explicit allowlist paths)
 
-Protected non-worker mutation endpoints covered by this default include:
+Examples of protected mutation endpoints under this default include:
 
 - `POST /api/jobs/`
 - `POST /api/jobs/<id>/retry/`
 - `POST /api/jobs/attachments/dedupe-check/`
+- `POST /api/monitoring/thresholds/`
+- `POST /api/trips/bookings/<id>/cancel/`
 
 Trip waypoint PATCH semantics (`PATCH /api/trips/<id>/`):
 
@@ -180,6 +198,7 @@ By default, execute mode uses `DB_ADMIN_USER` / `DB_ADMIN_PASSWORD` (falls back 
 ## Nightly Backups
 
 `backup_scheduler` runs `backup_db` automatically every night (default 02:00, local container time).
+When backup execution fails, the scheduler exits so the failure is visible and can be restarted/alerted externally.
 
 Configuration env vars:
 
@@ -286,7 +305,18 @@ Run the complete backend + frontend test flow in Docker:
 bash run_test.sh
 ```
 
-`run_test.sh` resets the Docker stack, starts services, waits for health, runs `tests.test_e2e_suite`, then runs frontend `test:run` and `build`.
+`run_test.sh` resets the Docker stack, starts services, waits for health, runs backend `tests` (all modules), then runs frontend `test:run` and `build`.
+It enforces sensitive-artifact guardrails, runs a non-mocked frontend-backend smoke flow (frontend shell load + real login + role check + write action), and scrubs sensitive runtime artifacts at the end.
+
+CI now also runs this real smoke path on push/PR via `.github/workflows/real-frontend-backend-smoke.yml`.
+
+For local frontend-only verification with archived logs:
+
+```bash
+bash deploy/verify_frontend_local.sh
+```
+
+Logs are written to `.tmp/frontend_verification/<timestamp>/`.
 
 ## Offline Folder Ingest Worker
 

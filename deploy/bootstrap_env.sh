@@ -40,6 +40,10 @@ placeholders = {
     "replace-with-strong-passphrase",
     "replace-with-generated-key",
     "replace-with-unique-key",
+    "harborops_dev_db_password_local_only",
+    "harborops_dev_root_password_local_only",
+    "django-insecure-harborops-local-dev-secret-key-2026",
+    "harborops-local-backup-passphrase-2026",
 }
 
 

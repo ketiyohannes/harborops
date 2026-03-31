@@ -27,6 +27,7 @@ from jobs.serializers import (
 from jobs.services import (
     claim_next_job,
     heartbeat,
+    resolve_concurrency_limit,
     require_lease_owner,
     validate_dependency_graph,
 )
@@ -143,7 +144,13 @@ class JobListCreateView(APIView):
             request.user if getattr(request.user, "is_authenticated", False) else None
         )
         obj = serializer.save(organization=target_org, created_by=created_by)
-        validate_dependency_graph(obj, dependency_ids)
+        try:
+            validate_dependency_graph(obj, dependency_ids)
+        except ValueError as exc:
+            obj.delete()
+            return Response(
+                {"detail": str(exc), "code": "invalid_dependency_graph"}, status=400
+            )
         for dep_id in dependency_ids:
             dep = get_object_or_404(
                 Job,
@@ -255,7 +262,7 @@ class JobClaimView(APIView):
         job = claim_next_job(
             worker_id=worker_id,
             organization_id=org_id,
-            concurrency_limit=int(request.data.get("concurrency_limit", 3)),
+            concurrency_limit=resolve_concurrency_limit(),
         )
         if not job:
             return Response(status=204)

@@ -6,7 +6,11 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from jobs.models import Job, JobStatus, JobTriggerType
-from jobs.services import claim_next_job, run_folder_ingest_job
+from jobs.services import (
+    claim_next_job,
+    resolve_concurrency_limit,
+    run_folder_ingest_job,
+)
 from organizations.models import Organization
 
 
@@ -68,7 +72,7 @@ class Command(BaseCommand):
 
     def _next_pending_jobs(self):
         worker_id = os.getenv("OFFLINE_INGEST_WORKER_ID", "offline-ingest-worker")
-        concurrency_limit = int(os.getenv("OFFLINE_INGEST_CONCURRENCY_LIMIT", "3"))
+        concurrency_limit = resolve_concurrency_limit()
         jobs = []
         org_ids = list(
             Organization.objects.filter(is_active=True).values_list("id", flat=True)

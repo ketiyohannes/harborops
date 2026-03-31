@@ -4,7 +4,7 @@ from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 
-from core.security_config import validate_app_aes_key_environment
+from core.security_config import validate_runtime_security_environment
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,7 +13,7 @@ RUNTIME_PROFILE = os.getenv("APP_RUNTIME_PROFILE", "production").strip().lower()
 IS_DEV_PROFILE = RUNTIME_PROFILE in {"dev", "development", "local"}
 
 if "test" not in sys.argv:
-    validate_app_aes_key_environment()
+    validate_runtime_security_environment()
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "").strip()
 if "test" in sys.argv and not SECRET_KEY:
@@ -83,9 +83,23 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "harborops_backend.urls"
 
-request_signing_prefixes_raw = os.getenv("REQUEST_SIGNING_PREFIXES", "/api/jobs/")
+request_signing_prefixes_raw = os.getenv("REQUEST_SIGNING_PREFIXES", "/api/")
 REQUEST_SIGNING_PREFIXES = tuple(
     item.strip() for item in request_signing_prefixes_raw.split(",") if item.strip()
+)
+
+request_signing_allowlist_raw = os.getenv(
+    "REQUEST_SIGNING_ALLOWLIST_PATHS",
+    "/api/auth/login/,/api/auth/register/,/api/auth/captcha/challenge/",
+)
+REQUEST_SIGNING_ALLOWLIST_PATHS = tuple(
+    item.strip() for item in request_signing_allowlist_raw.split(",") if item.strip()
+)
+
+session_replay_default = "false" if "test" in sys.argv else "true"
+SESSION_REPLAY_REQUIRE_HEADERS = (
+    os.getenv("SESSION_REPLAY_REQUIRE_HEADERS", session_replay_default).lower()
+    == "true"
 )
 
 TEMPLATES = [
