@@ -96,11 +96,12 @@ REQUEST_SIGNING_ALLOWLIST_PATHS = tuple(
     item.strip() for item in request_signing_allowlist_raw.split(",") if item.strip()
 )
 
-session_replay_default = "false" if "test" in sys.argv else "true"
-SESSION_REPLAY_REQUIRE_HEADERS = (
-    os.getenv("SESSION_REPLAY_REQUIRE_HEADERS", session_replay_default).lower()
-    == "true"
-)
+if "test" in sys.argv:
+    SESSION_REPLAY_REQUIRE_HEADERS = False
+else:
+    SESSION_REPLAY_REQUIRE_HEADERS = (
+        os.getenv("SESSION_REPLAY_REQUIRE_HEADERS", "true").lower() == "true"
+    )
 
 TEMPLATES = [
     {

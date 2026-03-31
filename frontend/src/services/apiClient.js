@@ -7,7 +7,26 @@ export function createApiClient(baseUrl) {
   }
 
   function buildApiError(response, payload) {
-    const message = payload?.detail || `Request failed (${response.status})`;
+    let message = payload?.detail;
+    if (!message && payload && typeof payload === "object") {
+      const entries = Object.entries(payload)
+        .map(([field, value]) => {
+          if (Array.isArray(value)) {
+            return `${field}: ${value.join(", ")}`;
+          }
+          if (typeof value === "string") {
+            return `${field}: ${value}`;
+          }
+          return null;
+        })
+        .filter(Boolean);
+      if (entries.length) {
+        message = entries.join(" | ");
+      }
+    }
+    if (!message) {
+      message = `Request failed (${response.status})`;
+    }
     const error = new Error(message);
     error.status = response.status;
     error.payload = payload;
